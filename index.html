@@ -485,7 +485,7 @@
                 console.log("Adding patient:", { name, age, type, symptoms, scheduledDate, scheduledTime });
                 
                 // Combine date and time into a single Date object
-                const scheduledDateTime = new Date(${scheduledDate}T${scheduledTime});
+                const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
                 
                 const patient = {
                     id: this.patientIdCounter++,
