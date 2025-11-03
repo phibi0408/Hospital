@@ -695,7 +695,7 @@
             
             if (patient) {
                 queue.cancelPatient(id);
-                alert(Now serving: ${patient.name}\nType: ${patient.type.toUpperCase()}\nSymptoms: ${patient.symptoms});
+                alert(`Now serving: ${patient.name}\nType: ${patient.type.toUpperCase()}\nSymptoms: ${patient.symptoms}`);
                 renderQueues();
             }
         }
@@ -716,9 +716,9 @@
             currentRescheduleId = id;
             
             // Set current patient info
-            document.getElementById('currentPatientName').textContent = ${patient.name} (${patient.age}yo);
+            document.getElementById('currentPatientName').textContent = `${patient.name} (${patient.age}yo)`;
             document.getElementById('currentDateTime').textContent = 
-                ${formatDate(patient.scheduledDate)} at ${formatTime(patient.scheduledTime)};
+                `${formatDate(patient.scheduledDate)} at ${formatTime(patient.scheduledTime)}`;
             document.getElementById('currentPriority').textContent = patient.type.toUpperCase();
             
             // Set default values in form
@@ -750,7 +750,7 @@
             const hour = parseInt(hours);
             const ampm = hour >= 12 ? 'PM' : 'AM';
             const displayHour = hour % 12 || 12;
-            return ${displayHour}:${minutes} ${ampm};
+            return `${displayHour}:${minutes} ${ampm}`;
         }
 
         // Initialize date and time fields with current date/time
@@ -802,7 +802,7 @@
                         initializeDateTimeFields();
                         
                         // Show confirmation
-                        alert(Appointment booked for ${name}!\nType: ${type.toUpperCase()}\nScheduled: ${formatDate(date)} at ${formatTime(time)}\nEstimated wait time: ${addedPatient.waitingTime} minutes);
+                        alert(`Appointment booked for ${name}!\nType: ${type.toUpperCase()}\nScheduled: ${formatDate(date)} at ${formatTime(time)}\nEstimated wait time: ${addedPatient.waitingTime} minutes`);
                     } catch (error) {
                         console.error("Error adding patient:", error);
                         alert('Error adding patient. Please check the console for details.');
@@ -832,7 +832,7 @@
                     // Show confirmation
                     const patient = queue.getPatientById(currentRescheduleId);
                     if (patient) {
-                        alert(Appointment rescheduled for ${patient.name}!\nNew schedule: ${formatDate(newDate)} at ${formatTime(newTime)}\nNew priority: ${newType.toUpperCase()});
+                        alert(`Appointment rescheduled for ${patient.name}!\nNew schedule: ${formatDate(newDate)} at ${formatTime(newTime)}\nNew priority: ${newType.toUpperCase()}`);
                     }
                 });
             }
