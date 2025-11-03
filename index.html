@@ -247,6 +247,93 @@
             color: #764ba2;
             font-weight: bold;
         }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .modal-title {
+            color: #667eea;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .close-btn:hover {
+            color: #333;
+        }
+        
+        .current-schedule {
+            background: #f0f4ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .current-schedule h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .reschedule-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .scheduled-date {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 3px;
+        }
     </style>
 </head>
 <body>
@@ -293,6 +380,14 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label for="appointmentDate">Appointment Date</label>
+                        <input type="date" id="appointmentDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="appointmentTime">Appointment Time</label>
+                        <input type="time" id="appointmentTime" required>
+                    </div>
+                    <div class="form-group">
                         <label for="symptoms">Symptoms</label>
                         <input type="text" id="symptoms" required placeholder="Brief description of symptoms">
                     </div>
@@ -316,6 +411,48 @@
         </div>
     </div>
 
+    <!-- Reschedule Modal -->
+    <div class="modal" id="rescheduleModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">🔄 Reschedule Appointment</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            
+            <div class="current-schedule">
+                <h3>Current Schedule</h3>
+                <p><strong>Patient:</strong> <span id="currentPatientName"></span></p>
+                <p><strong>Current Date/Time:</strong> <span id="currentDateTime"></span></p>
+                <p><strong>Current Priority:</strong> <span id="currentPriority"></span></p>
+            </div>
+            
+            <form id="rescheduleForm">
+                <div class="form-group">
+                    <label for="newAppointmentDate">New Appointment Date</label>
+                    <input type="date" id="newAppointmentDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="newAppointmentTime">New Appointment Time</label>
+                    <input type="time" id="newAppointmentTime" required>
+                </div>
+                <div class="form-group full-width">
+                    <label for="newPatientType">New Patient Type</label>
+                    <select id="newPatientType" required>
+                        <option value="regular">Regular Appointment</option>
+                        <option value="critical">Emergency - Critical</option>
+                        <option value="serious">Emergency - Serious</option>
+                        <option value="mild">Emergency - Mild</option>
+                    </select>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelReschedule">Cancel</button>
+                    <button type="submit" class="btn-reschedule">Confirm Reschedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const AVG_CONSULTATION_TIME = 15; // minutes
 
@@ -326,7 +463,10 @@
                 this.patientIdCounter = 1;
             }
 
-            addPatient(name, age, type, symptoms) {
+            addPatient(name, age, type, symptoms, scheduledDate, scheduledTime) {
+                // Combine date and time into a single Date object
+                const scheduledDateTime = new Date(${scheduledDate}T${scheduledTime});
+                
                 const patient = {
                     id: this.patientIdCounter++,
                     name,
@@ -334,19 +474,25 @@
                     type,
                     symptoms,
                     arrivalTime: new Date(),
+                    scheduledDate: scheduledDate,
+                    scheduledTime: scheduledTime,
+                    scheduledDateTime: scheduledDateTime,
                     waitingTime: 0
                 };
 
                 if (type === 'regular') {
                     this.regularQueue.push(patient);
+                    // Sort regular queue by scheduled date/time
+                    this.regularQueue.sort((a, b) => a.scheduledDateTime - b.scheduledDateTime);
                 } else {
                     this.emergencyQueue.push(patient);
+                    // Sort emergency queue by priority and then by scheduled date/time
                     this.emergencyQueue.sort((a, b) => {
                         const priority = { critical: 3, serious: 2, mild: 1 };
                         if (priority[b.type] !== priority[a.type]) {
                             return priority[b.type] - priority[a.type];
                         }
-                        return a.arrivalTime - b.arrivalTime;
+                        return a.scheduledDateTime - b.scheduledDateTime;
                     });
                 }
 
@@ -377,13 +523,13 @@
                 this.updateWaitingTimes();
             }
 
-            reschedulePatient(id, newType) {
+            reschedulePatient(id, newType, newDate, newTime) {
                 let patient = this.emergencyQueue.find(p => p.id === id) || 
                              this.regularQueue.find(p => p.id === id);
                 
                 if (patient) {
                     this.cancelPatient(id);
-                    this.addPatient(patient.name, patient.age, newType, patient.symptoms);
+                    this.addPatient(patient.name, patient.age, newType, patient.symptoms, newDate, newTime);
                 }
             }
 
@@ -418,9 +564,15 @@
                 
                 return Math.round(totalWait / total);
             }
+            
+            getPatientById(id) {
+                return this.emergencyQueue.find(p => p.id === id) || 
+                       this.regularQueue.find(p => p.id === id);
+            }
         }
 
         const queue = new PatientQueue();
+        let currentRescheduleId = null;
 
         function renderQueues() {
             renderEmergencyQueue();
@@ -430,60 +582,78 @@
 
         function renderEmergencyQueue() {
             const container = document.getElementById('emergencyQueue');
+            console.log('Rendering emergency queue, length:', queue.emergencyQueue.length);
             
             if (queue.emergencyQueue.length === 0) {
                 container.innerHTML = '<div class="empty-state">No emergency patients</div>';
                 return;
             }
 
-            container.innerHTML = queue.emergencyQueue.map(patient => `
-                <div class="patient-card priority-${patient.type}">
-                    <div class="patient-info">
-                        <div class="patient-name">
-                            <span class="priority-badge">${patient.type.toUpperCase()}</span>
-                            ${patient.name} (${patient.age}yo)
+            let html = '';
+            queue.emergencyQueue.forEach(patient => {
+                const formattedDate = formatDate(patient.scheduledDate);
+                const formattedTime = formatTime(patient.scheduledTime);
+                
+                html += `
+                    <div class="patient-card priority-${patient.type}">
+                        <div class="patient-info">
+                            <div class="patient-name">
+                                <span class="priority-badge">${patient.type.toUpperCase()}</span>
+                                ${patient.name} (${patient.age}yo)
+                            </div>
+                            <div class="patient-details">
+                                ${patient.symptoms} | 
+                                <span class="waiting-time">Wait: ${patient.waitingTime} min</span>
+                                <div class="scheduled-date">Scheduled: ${formattedDate} at ${formattedTime}</div>
+                            </div>
                         </div>
-                        <div class="patient-details">
-                            ${patient.symptoms} | 
-                            <span class="waiting-time">Wait: ${patient.waitingTime} min</span>
+                        <div class="action-buttons">
+                            <button class="btn-small btn-serve" onclick="servePatient(${patient.id})">Serve</button>
+                            <button class="btn-small btn-reschedule" onclick="openRescheduleModal(${patient.id})">Reschedule</button>
+                            <button class="btn-small btn-cancel" onclick="cancelPatient(${patient.id})">Cancel</button>
                         </div>
                     </div>
-                    <div class="action-buttons">
-                        <button class="btn-small btn-serve" onclick="servePatient(${patient.id})">Serve</button>
-                        <button class="btn-small btn-reschedule" onclick="reschedule(${patient.id})">Reschedule</button>
-                        <button class="btn-small btn-cancel" onclick="cancelPatient(${patient.id})">Cancel</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            });
+            container.innerHTML = html;
         }
 
         function renderRegularQueue() {
             const container = document.getElementById('regularQueue');
+            console.log('Rendering regular queue, length:', queue.regularQueue.length);
             
             if (queue.regularQueue.length === 0) {
                 container.innerHTML = '<div class="empty-state">No regular patients</div>';
                 return;
             }
 
-            container.innerHTML = queue.regularQueue.map(patient => `
-                <div class="patient-card priority-regular">
-                    <div class="patient-info">
-                        <div class="patient-name">
-                            <span class="priority-badge">REGULAR</span>
-                            ${patient.name} (${patient.age}yo)
+            let html = '';
+            queue.regularQueue.forEach(patient => {
+                const formattedDate = formatDate(patient.scheduledDate);
+                const formattedTime = formatTime(patient.scheduledTime);
+                
+                html += `
+                    <div class="patient-card priority-regular">
+                        <div class="patient-info">
+                            <div class="patient-name">
+                                <span class="priority-badge">REGULAR</span>
+                                ${patient.name} (${patient.age}yo)
+                            </div>
+                            <div class="patient-details">
+                                ${patient.symptoms} | 
+                                <span class="waiting-time">Wait: ${patient.waitingTime} min</span>
+                                <div class="scheduled-date">Scheduled: ${formattedDate} at ${formattedTime}</div>
+                            </div>
                         </div>
-                        <div class="patient-details">
-                            ${patient.symptoms} | 
-                            <span class="waiting-time">Wait: ${patient.waitingTime} min</span>
+                        <div class="action-buttons">
+                            <button class="btn-small btn-serve" onclick="servePatient(${patient.id})">Serve</button>
+                            <button class="btn-small btn-reschedule" onclick="openRescheduleModal(${patient.id})">Reschedule</button>
+                            <button class="btn-small btn-cancel" onclick="cancelPatient(${patient.id})">Cancel</button>
                         </div>
                     </div>
-                    <div class="action-buttons">
-                        <button class="btn-small btn-serve" onclick="servePatient(${patient.id})">Serve</button>
-                        <button class="btn-small btn-reschedule" onclick="reschedule(${patient.id})">Reschedule</button>
-                        <button class="btn-small btn-cancel" onclick="cancelPatient(${patient.id})">Cancel</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            });
+            container.innerHTML = html;
         }
 
         function updateStats() {
@@ -510,38 +680,122 @@
             }
         }
 
-        function reschedule(id) {
-            const newType = prompt('Enter new patient type:\n- regular\n- critical\n- serious\n- mild');
+        function openRescheduleModal(id) {
+            const patient = queue.getPatientById(id);
+            if (!patient) return;
             
-            if (newType && ['regular', 'critical', 'serious', 'mild'].includes(newType.toLowerCase())) {
-                queue.reschedulePatient(id, newType.toLowerCase());
-                renderQueues();
-            } else if (newType) {
-                alert('Invalid patient type. Please use: regular, critical, serious, or mild');
-            }
+            currentRescheduleId = id;
+            
+            // Set current patient info
+            document.getElementById('currentPatientName').textContent = ${patient.name} (${patient.age}yo);
+            document.getElementById('currentDateTime').textContent = 
+                ${formatDate(patient.scheduledDate)} at ${formatTime(patient.scheduledTime)};
+            document.getElementById('currentPriority').textContent = patient.type.toUpperCase();
+            
+            // Set default values in form
+            document.getElementById('newAppointmentDate').value = patient.scheduledDate;
+            document.getElementById('newAppointmentTime').value = patient.scheduledTime;
+            document.getElementById('newPatientType').value = patient.type;
+            
+            // Show modal
+            document.getElementById('rescheduleModal').style.display = 'flex';
         }
 
+        function closeRescheduleModal() {
+            document.getElementById('rescheduleModal').style.display = 'none';
+            currentRescheduleId = null;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function formatTime(timeString) {
+            const [hours, minutes] = timeString.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour % 12 || 12;
+            return ${displayHour}:${minutes} ${ampm};
+        }
+
+        // Initialize date and time fields with current date/time
+        function initializeDateTimeFields() {
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const time = now.toTimeString().slice(0, 5);
+            
+            document.getElementById('appointmentDate').value = today;
+            document.getElementById('appointmentDate').min = today;
+            document.getElementById('appointmentTime').value = time;
+            
+            document.getElementById('newAppointmentDate').min = today;
+        }
+
+        // Event Listeners
         document.getElementById('appointmentForm').addEventListener('submit', (e) => {
             e.preventDefault();
             
             const name = document.getElementById('patientName').value;
             const age = document.getElementById('patientAge').value;
             const type = document.getElementById('patientType').value;
+            const date = document.getElementById('appointmentDate').value;
+            const time = document.getElementById('appointmentTime').value;
             const symptoms = document.getElementById('symptoms').value;
 
-            const addedPatient = queue.addPatient(name, age, type, symptoms);
+            const addedPatient = queue.addPatient(name, age, type, symptoms, date, time);
             
             // Force re-render
             renderQueues();
 
             // Reset form
             e.target.reset();
+            initializeDateTimeFields();
             
             // Show confirmation
-            alert(Appointment booked for ${name}!\nType: ${type.toUpperCase()}\nEstimated wait time: ${addedPatient.waitingTime} minutes);
+            alert(Appointment booked for ${name}!\nType: ${type.toUpperCase()}\nScheduled: ${formatDate(date)} at ${formatTime(time)}\nEstimated wait time: ${addedPatient.waitingTime} minutes);
         });
 
-        // Initial render
+        document.getElementById('rescheduleForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            if (!currentRescheduleId) return;
+            
+            const newDate = document.getElementById('newAppointmentDate').value;
+            const newTime = document.getElementById('newAppointmentTime').value;
+            const newType = document.getElementById('newPatientType').value;
+            
+            queue.reschedulePatient(currentRescheduleId, newType, newDate, newTime);
+            
+            // Close modal and re-render
+            closeRescheduleModal();
+            renderQueues();
+            
+            // Show confirmation
+            const patient = queue.getPatientById(currentRescheduleId);
+            if (patient) {
+                alert(Appointment rescheduled for ${patient.name}!\nNew schedule: ${formatDate(newDate)} at ${formatTime(newTime)}\nNew priority: ${newType.toUpperCase()});
+            }
+        });
+
+        document.getElementById('closeModal').addEventListener('click', closeRescheduleModal);
+        document.getElementById('cancelReschedule').addEventListener('click', closeRescheduleModal);
+
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('rescheduleModal');
+            if (e.target === modal) {
+                closeRescheduleModal();
+            }
+        });
+
+        // Initial render and setup
+        initializeDateTimeFields();
         renderQueues();
     </script>
 </body>
