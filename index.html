@@ -334,6 +334,16 @@
             font-size: 0.9em;
             margin-top: 3px;
         }
+
+        .debug-info {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 12px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -341,6 +351,9 @@
         <header>
             <h1>🏥 Hospital Appointment System</h1>
             <p class="subtitle">Efficient Patient Queue Management</p>
+            <div class="debug-info" id="debugInfo">
+                Debug: System loaded successfully
+            </div>
         </header>
 
         <div class="stats">
@@ -391,7 +404,7 @@
                         <label for="symptoms">Symptoms</label>
                         <input type="text" id="symptoms" required placeholder="Brief description of symptoms">
                     </div>
-                    <button type="submit">Add Patient to Queue</button>
+                    <button type="submit" id="submitButton">Add Patient to Queue</button>
                 </form>
             </div>
 
@@ -454,6 +467,10 @@
     </div>
 
     <script>
+        // Debug logging
+        console.log("Hospital Appointment System - Script loaded");
+        document.getElementById('debugInfo').style.display = 'block';
+
         const AVG_CONSULTATION_TIME = 15; // minutes
 
         class PatientQueue {
@@ -461,9 +478,12 @@
                 this.emergencyQueue = [];
                 this.regularQueue = [];
                 this.patientIdCounter = 1;
+                console.log("PatientQueue initialized");
             }
 
             addPatient(name, age, type, symptoms, scheduledDate, scheduledTime) {
+                console.log("Adding patient:", { name, age, type, symptoms, scheduledDate, scheduledTime });
+                
                 // Combine date and time into a single Date object
                 const scheduledDateTime = new Date(${scheduledDate}T${scheduledTime});
                 
@@ -497,9 +517,9 @@
                 }
 
                 this.updateWaitingTimes();
-                console.log('Patient added:', patient);
-                console.log('Emergency queue:', this.emergencyQueue);
-                console.log('Regular queue:', this.regularQueue);
+                console.log('Patient added successfully:', patient);
+                console.log('Emergency queue length:', this.emergencyQueue.length);
+                console.log('Regular queue length:', this.regularQueue.length);
                 return patient;
             }
 
@@ -571,10 +591,16 @@
             }
         }
 
+        // Initialize queue
         const queue = new PatientQueue();
         let currentRescheduleId = null;
 
+        // Debug: Check if elements exist
+        console.log("Form element:", document.getElementById('appointmentForm'));
+        console.log("Submit button:", document.getElementById('submitButton'));
+
         function renderQueues() {
+            console.log("Rendering queues...");
             renderEmergencyQueue();
             renderRegularQueue();
             updateStats();
@@ -663,6 +689,7 @@
         }
 
         function servePatient(id) {
+            console.log("Serving patient:", id);
             const patient = queue.emergencyQueue.find(p => p.id === id) || 
                           queue.regularQueue.find(p => p.id === id);
             
@@ -674,6 +701,7 @@
         }
 
         function cancelPatient(id) {
+            console.log("Cancelling patient:", id);
             if (confirm('Are you sure you want to cancel this appointment?')) {
                 queue.cancelPatient(id);
                 renderQueues();
@@ -681,6 +709,7 @@
         }
 
         function openRescheduleModal(id) {
+            console.log("Opening reschedule modal for patient:", id);
             const patient = queue.getPatientById(id);
             if (!patient) return;
             
@@ -737,66 +766,111 @@
             document.getElementById('newAppointmentDate').min = today;
         }
 
-        // Event Listeners
-        document.getElementById('appointmentForm').addEventListener('submit', (e) => {
-            e.preventDefault();
+        // Event Listeners with error handling
+        function setupEventListeners() {
+            console.log("Setting up event listeners...");
             
-            const name = document.getElementById('patientName').value;
-            const age = document.getElementById('patientAge').value;
-            const type = document.getElementById('patientType').value;
-            const date = document.getElementById('appointmentDate').value;
-            const time = document.getElementById('appointmentTime').value;
-            const symptoms = document.getElementById('symptoms').value;
+            const appointmentForm = document.getElementById('appointmentForm');
+            if (appointmentForm) {
+                appointmentForm.addEventListener('submit', function(e) {
+                    console.log("Form submit event triggered");
+                    e.preventDefault();
+                    
+                    const name = document.getElementById('patientName').value;
+                    const age = document.getElementById('patientAge').value;
+                    const type = document.getElementById('patientType').value;
+                    const date = document.getElementById('appointmentDate').value;
+                    const time = document.getElementById('appointmentTime').value;
+                    const symptoms = document.getElementById('symptoms').value;
 
-            const addedPatient = queue.addPatient(name, age, type, symptoms, date, time);
-            
-            // Force re-render
-            renderQueues();
+                    console.log("Form data:", { name, age, type, date, time, symptoms });
 
-            // Reset form
-            e.target.reset();
+                    // Basic validation
+                    if (!name || !age || !date || !time || !symptoms) {
+                        alert('Please fill in all fields');
+                        return;
+                    }
+
+                    try {
+                        const addedPatient = queue.addPatient(name, age, type, symptoms, date, time);
+                        
+                        // Force re-render
+                        renderQueues();
+
+                        // Reset form
+                        e.target.reset();
+                        initializeDateTimeFields();
+                        
+                        // Show confirmation
+                        alert(Appointment booked for ${name}!\nType: ${type.toUpperCase()}\nScheduled: ${formatDate(date)} at ${formatTime(time)}\nEstimated wait time: ${addedPatient.waitingTime} minutes);
+                    } catch (error) {
+                        console.error("Error adding patient:", error);
+                        alert('Error adding patient. Please check the console for details.');
+                    }
+                });
+            } else {
+                console.error("Appointment form not found!");
+            }
+
+            const rescheduleForm = document.getElementById('rescheduleForm');
+            if (rescheduleForm) {
+                rescheduleForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    if (!currentRescheduleId) return;
+                    
+                    const newDate = document.getElementById('newAppointmentDate').value;
+                    const newTime = document.getElementById('newAppointmentTime').value;
+                    const newType = document.getElementById('newPatientType').value;
+                    
+                    queue.reschedulePatient(currentRescheduleId, newType, newDate, newTime);
+                    
+                    // Close modal and re-render
+                    closeRescheduleModal();
+                    renderQueues();
+                    
+                    // Show confirmation
+                    const patient = queue.getPatientById(currentRescheduleId);
+                    if (patient) {
+                        alert(Appointment rescheduled for ${patient.name}!\nNew schedule: ${formatDate(newDate)} at ${formatTime(newTime)}\nNew priority: ${newType.toUpperCase()});
+                    }
+                });
+            }
+
+            const closeModalBtn = document.getElementById('closeModal');
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', closeRescheduleModal);
+            }
+
+            const cancelRescheduleBtn = document.getElementById('cancelReschedule');
+            if (cancelRescheduleBtn) {
+                cancelRescheduleBtn.addEventListener('click', closeRescheduleModal);
+            }
+
+            // Close modal when clicking outside
+            window.addEventListener('click', function(e) {
+                const modal = document.getElementById('rescheduleModal');
+                if (e.target === modal) {
+                    closeRescheduleModal();
+                }
+            });
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("DOM fully loaded");
             initializeDateTimeFields();
-            
-            // Show confirmation
-            alert(Appointment booked for ${name}!\nType: ${type.toUpperCase()}\nScheduled: ${formatDate(date)} at ${formatTime(time)}\nEstimated wait time: ${addedPatient.waitingTime} minutes);
-        });
-
-        document.getElementById('rescheduleForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            
-            if (!currentRescheduleId) return;
-            
-            const newDate = document.getElementById('newAppointmentDate').value;
-            const newTime = document.getElementById('newAppointmentTime').value;
-            const newType = document.getElementById('newPatientType').value;
-            
-            queue.reschedulePatient(currentRescheduleId, newType, newDate, newTime);
-            
-            // Close modal and re-render
-            closeRescheduleModal();
+            setupEventListeners();
             renderQueues();
-            
-            // Show confirmation
-            const patient = queue.getPatientById(currentRescheduleId);
-            if (patient) {
-                alert(Appointment rescheduled for ${patient.name}!\nNew schedule: ${formatDate(newDate)} at ${formatTime(newTime)}\nNew priority: ${newType.toUpperCase()});
-            }
+            document.getElementById('debugInfo').textContent = "Debug: System fully initialized and ready";
         });
 
-        document.getElementById('closeModal').addEventListener('click', closeRescheduleModal);
-        document.getElementById('cancelReschedule').addEventListener('click', closeRescheduleModal);
-
-        // Close modal when clicking outside
-        window.addEventListener('click', (e) => {
-            const modal = document.getElementById('rescheduleModal');
-            if (e.target === modal) {
-                closeRescheduleModal();
-            }
-        });
-
-        // Initial render and setup
-        initializeDateTimeFields();
-        renderQueues();
+        // Fallback initialization
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeDateTimeFields);
+        } else {
+            initializeDateTimeFields();
+        }
     </script>
 </body>
 </html>
